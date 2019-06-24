@@ -214,8 +214,8 @@ class ShipmentDeliveryResource implements ShipmentDeliveryResourceInterface
     public function updateShipmentPostDelivery(Request $request)
     {
 
-        Log::info("RECEIVED: " . json_encode($request->all()));
-        // tag store close deliveries
+        Log::info("RECEIVED: " . json_encode($requestall()));
+        // tag store close deliveries->
         if (!empty($request->get('StoreClose'))) {
             $update_store_closed = ResourceHelper::batchUpdateResource($request, $this->module, $this->model, 'shipment_delivery_uuid', 'delivery_status_id', '=', $request->get('StoreClose'));
             Log::info("return for store closed : " . $update_store_closed['message']);
@@ -366,65 +366,68 @@ class ShipmentDeliveryResource implements ShipmentDeliveryResourceInterface
                     }
                 }
 
-                foreach ($delivery as $key => $arr_value) {
-                    //create POD for delivered 
-                    $this->shipmentDelivery = ShipmentDelivery::whereShipmentDeliveryUuid($arr_value['shipment_delivery_uuid'])->first();
-                    try {
+                $holder = $request->get('Delivered');
+                $delivery_uuid = $holder[0]['shipment_delivery_uuid'];
+                Log::info("DELIVERY UUID: ".$delivery_uuid);
 
-                        $filename = 'POD_' . $this->shipmentDelivery->selecta_code_id . '_' . date("Ymdhis", strtotime($this->shipmentDelivery->delivery_end_time));
-                        Log::info("POD Filename : " . $filename);
+                //create POD for delivered
+                $this->shipmentDelivery = ShipmentDelivery::whereShipmentDeliveryUuid($delivery_uuid)->first();
+                try {
 
-                        Log::info("parse data : " . json_encode($ddata));
-                        // Log::info("POD Raw Data : ".$csv_data);
+                    $filename = 'POD_' . $this->shipmentDelivery->selecta_code_id . '_' . date("Ymdhis", strtotime($this->shipmentDelivery->delivery_end_time));
+                    Log::info("POD Filename : " . $filename);
 
-                        /* POD csv - try
-                                $checkPOD = POD::where('pod_csv_filename', $filename. '.csv')->exists();
-                        if($checkPOD) {
-                           POD::where('pod_csv_filename', $filename. '.csv')->delete();
-                                   unlink(public_path().'/uploads/csv/pod'.$filename.'.csv');
-                        }*/
+                    Log::info("parse data : " . json_encode($ddata));
+                    // Log::info("POD Raw Data : ".$csv_data);
 
-                        $file_path = Excel::create($filename, function ($excel) use ($csv_data) {
-                            $excel->sheet('POD', function ($sheet) use ($csv_data) {
-                                $sheet->fromArray($csv_data, null, 'A1', false, false);
-                            });
-                        })->store('csv', public_path() . '/uploads/csv/pod', true);
+                    /* POD csv - try
+                            $checkPOD = POD::where('pod_csv_filename', $filename. '.csv')->exists();
+                    if($checkPOD) {
+                       POD::where('pod_csv_filename', $filename. '.csv')->delete();
+                               unlink(public_path().'/uploads/csv/pod'.$filename.'.csv');
+                    }*/
 
-                        //save POD to DB
-                        $uuid1 = Uuid::uuid1();
-                        $this->pod = new Pod;
-                        $this->pod->pod_uuid = $uuid1->toString();
-                        $this->pod->store_id = $this->shipmentDelivery->store_id;
-                        $this->pod->shipment_delivery_id = $this->shipmentDelivery->shipment_delivery_id;
-                        $this->pod->pod_csv_filename = $filename . '.csv';
-                        $this->pod->pod_pdf_filename = '';
-                        $this->pod->document_number = 0;
-                        $this->pod->document_id = 0;
-                        $this->pod->synched_status = 0;
-                        $this->pod->is_failed = 0;
-                        $this->pod->upload_date = Carbon::now()->toDateTimeString();
-                        $this->pod->created_at = Carbon::now()->toDateTimeString();
-                        $this->pod->updated_at = Carbon::now()->toDateTimeString();
+                    $file_path = Excel::create($filename, function ($excel) use ($csv_data) {
+                        $excel->sheet('POD', function ($sheet) use ($csv_data) {
+                            $sheet->fromArray($csv_data, null, 'A1', false, false);
+                        });
+                    })->store('csv', public_path() . '/uploads/csv/pod', true);
 
-                        if ($this->pod->save()) {
-                            Log::info("POD Save to DB : " . $filename . '.csv');
-                            $file_type = 'POD';
-                            $sftp_upload = FileHelper::sftpUploadFile($file_path['full'], $file_type, $this->pod->pod_csv_filename);
-                            if ($sftp_upload) {
-                                $this->update_pod = Pod::wherePodUuid($this->pod->pod_uuid)->first();
-                                if ($this->update_pod) {
-                                    $this->update_pod->synched_status = 1;
-                                    $this->update_pod->is_failed = 0;
-                                    $this->update_pod->updated_at = Carbon::now()->toDateTimeString();
-                                    $this->update_pod->save();
-                                }
+                    //save POD to DB
+                    $uuid1 = Uuid::uuid1();
+                    $this->pod = new Pod;
+                    $this->pod->pod_uuid = $uuid1->toString();
+                    $this->pod->store_id = $this->shipmentDelivery->store_id;
+                    $this->pod->shipment_delivery_id = $this->shipmentDelivery->shipment_delivery_id;
+                    $this->pod->pod_csv_filename = $filename . '.csv';
+                    $this->pod->pod_pdf_filename = '';
+                    $this->pod->document_number = 0;
+                    $this->pod->document_id = 0;
+                    $this->pod->synched_status = 0;
+                    $this->pod->is_failed = 0;
+                    $this->pod->upload_date = Carbon::now()->toDateTimeString();
+                    $this->pod->created_at = Carbon::now()->toDateTimeString();
+                    $this->pod->updated_at = Carbon::now()->toDateTimeString();
+
+                    if ($this->pod->save()) {
+                        Log::info("POD Save to DB : " . $filename . '.csv');
+                        $file_type = 'POD';
+                        $sftp_upload = FileHelper::sftpUploadFile($file_path['full'], $file_type, $this->pod->pod_csv_filename);
+                        if ($sftp_upload) {
+                            $this->update_pod = Pod::wherePodUuid($this->pod->pod_uuid)->first();
+                            if ($this->update_pod) {
+                                $this->update_pod->synched_status = 1;
+                                $this->update_pod->is_failed = 0;
+                                $this->update_pod->updated_at = Carbon::now()->toDateTimeString();
+                                $this->update_pod->save();
                             }
                         }
-                    } catch (Exception $e) {
-                        // Nothing to do
-                        Log::info("POD Not saved on DB");
                     }
+                } catch (Exception $e) {
+                    // Nothing to do
+                    Log::info("POD Not saved on DB");
                 }
+                
             }
 
         } else {
